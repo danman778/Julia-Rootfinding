@@ -7,14 +7,48 @@ struct MultiPower
 
     function MultiPower(coeff)
         dim = ndims(coeff)
-        new(coeff,dim)
+        new(to_julia(coeff),dim)
     end
 end
 
 struct MultiCheb
     """Contains the coeffs array for a MultiCheb object"""
     coeff
+    dim
+    function MultiCheb(coeff)
+        dim = ndims(coeff)
+        new(to_julia(coeff),dim)
+    end
+
 end
+
+function to_python(A)
+    """" Converts A to an array who's indices match python indices
+        So B[i,j,k,...] would return the same thing as P[i,j,k,...],
+        where P is the python representation of the matrix A 
+    """
+    s = size(A)
+    dim = length(s)
+    B = permutedims(reshape(A,reverse(s)),dim:-1:1)
+    return B
+end
+
+function to_julia(A)
+    """" Converts A to an array who's indices match python indices
+        So B[i,j,k,...] would return the same thing as P[i,j,k,...],
+        where P is the python representation of the matrix A 
+    """
+
+    s = size(A)
+    dim = length(s)
+    dim_order = collect(dim:-1:1)
+    dim_order[1] = dim-1
+    dim_order[2] = dim
+    # println(dim_order)
+    B = permutedims(A,dim_order)
+    return B
+end
+
 
 function eval_MultiPower(multiPower,points)
     function polyval(x, cc)
@@ -38,9 +72,9 @@ function eval_MultiPower(multiPower,points)
         1/0
     end
 
-    c = multiPower.coeff
-    n = ndims(c)
-    cc = reshape(c,reverse((reverse(size(c))...,ntuple(i->1, ndims(points))...)))
+    n = multiPower.dim
+    c = permutedims(multiPower.coeff,(2,1,collect(3:n)...))
+    cc = reshape(c,(ntuple(i->1, ndims(points))..., size(c)...))
     c = polyval(points[1,:],cc)
     for i in 2:n
         c = polyval(points[i,:],c)
@@ -134,3 +168,27 @@ function multipower_to_cheb(coeffs)
     final_order = append!([2,1],collect(3:ndims(coeffs)))
     return permutedims(cheb_coeffs,final_order)
 end
+
+
+function chebval(x, cc)
+    len = length(cc)
+    if len == 1
+        c0 = cc[1]
+        c1 = zeros_like(c0)
+    elseif len == 2
+        c0 = cc[1]
+        c1 = cc[2]
+    else
+        x2 = 2*x
+        c0 = cc[end-1]
+        c1 = cc[end]
+        for i in 3:len
+            tmp = c0
+            c0 = cc[end-i+1] - c1
+            c1 = tmp + c1*x2
+        end
+    end
+    return c0 + c1*x
+end
+
+
