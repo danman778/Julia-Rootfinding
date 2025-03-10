@@ -60,24 +60,3 @@ function polyval(x, cc)
     end
     return c0
 end
-
-function chebval(x, cc)
-    len = length(cc)
-    if len == 1
-        c0 = cc[0]
-        c1 = zeros_like(c0)
-    elseif len == 2
-        c0 = cc[0]
-        c1 = cc[1]
-    else
-        x2 = 2*x
-        c0 = cc[-2]
-        c1 = cc[-1]
-        for i in 3:len
-            tmp = c0
-            c0 = cc[-i] - c1
-            c1 = tmp + c1*x2
-        end
-    end
-    return c0 + c1*x
-end

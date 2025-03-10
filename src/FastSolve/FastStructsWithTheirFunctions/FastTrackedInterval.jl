@@ -70,7 +70,7 @@ function fast_addTransform(trackedInterval::FastTrackedInterval, subInterval)
         The subinterval to which the current interval is being reduced
     """
     #Ensure the interval has non zero size; mark it empty if it doesn't
-    if any(subInterval[1,:] > subInterval[2,:]) && canThrowOut(trackedInterval)
+    if any(subInterval[1,:] > subInterval[2,:]) && fast_canThrowOut(trackedInterval)
         trackedInterval.empty = true
         return
     elseif any(subInterval[1,:] > subInterval[2,:])
