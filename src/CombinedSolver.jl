@@ -226,20 +226,3 @@ function solve(funcs,a,b; verbose = false, returnBoundingBoxes = false, exact=fa
         return finalRoots
     end
 end
-
-
-
-# A = [0. -1 0;-1 2 0;;;0 0 0;0 0 0]
-# B = [0. 1;3 1;0 0;;;0 0;0 0;0 0]
-# C = [0. 0;0 0;;;1 0;0 0;;;0 0;0 0]
-# P = MultiPower(A)
-# Q = MultiPower(B)
-# R = MultiPower(C)
-# xs = solve([P,Q,R], [-1,-1,-1], [1,1,1])
-# x = xs[2]
-# println(x)
-# y = eval_MultiPower(Q,x)
-# println(eval_MultiPower(R,x))
-# println(eval_MultiPower(P,x))
-# println(y)
-# println(B[1,1,1] + B[2,1,1]*x[1] + B[1,2,1]*x[2] + B[2,2,1]*x[1]*x[2] + B[1,1,2]*x[3] + B[2,1,2]*x[1]*x[3] + B[1,2,2]*x[2]*x[3] + B[2,2,2]*x[1]*x[2]*x[3])
