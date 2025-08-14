@@ -3,6 +3,8 @@ include("ChebyshevSubdivisionSolver.jl")
 include("StructsWithTheirFunctions/Polynomial.jl")
 include("FastSolve/FastCombinedSolver.jl")
 
+global precision::Int
+global type::Type
 
 function solve(funcs,a,b; verbose = false, returnBoundingBoxes = false, exact=false, minBoundingIntervalSize=1e-5, roundoff=53)
     """Finds and returns the roots of a system of functions on the search interval [a,b].
@@ -92,22 +94,33 @@ function solve(funcs,a,b; verbose = false, returnBoundingBoxes = false, exact=fa
         print(" ")
     end
 
-    # Set precision for Solver
-    global type = Float64
-    global precision = roundoff
-
-    if precision <= 11
-        precision = 11
-        type = Float16
-    elseif precision <= 24
-        precision = 24
-        type = Float32
-    elseif precision <= 53
-        return fast_solve(funcs,a,b; verbose=verbose, returnBoundingBoxes=returnBoundingBoxes, exact=exact, minBoundingIntervalSize=minBoundingIntervalSize)
-    else
-        setprecision(precision)
-        type = BigFloat
+    function get_type_precision(roundoff)
+        # Get precision for Solver
+        if roundoff <= 11
+            p = 11
+            t = Float16
+        elseif roundoff <= 24
+            p = 24
+            t = Float32
+        elseif roundoff <= 53
+            p = 53
+            t = Float64
+        else
+            p = roundoff
+            setprecision(p)
+            t = BigFloat
+        end
+        return t, p
     end
+
+    t,p = get_type_precision(roundoff)
+    if t == Float64
+        return fast_solve(funcs,a,b; verbose=verbose, returnBoundingBoxes=returnBoundingBoxes, exact=exact, minBoundingIntervalSize=minBoundingIntervalSize)
+    end
+    type = t
+    precision = p
+
+    
 
     for i in 1:dim
         if typeof(funcs[i]) == MultiPower
