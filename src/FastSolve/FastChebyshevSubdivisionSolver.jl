@@ -254,9 +254,7 @@ function fast_transformChebInPlace1D(coeffs,alpha,beta)
         return fast_transformChebInPlace1D1D(coeffs,alpha,beta)
     end
     dim = length(coeffs_shape)
-    # println(coeffs)
     flat_coeffs = reshape(coeffs,:,coeffs_shape[dim])
-    # println(flat_coeffs)
     flat_coeffs_shape = [i for i in size(flat_coeffs)]
     
     last_dim_length = coeffs_shape[end]

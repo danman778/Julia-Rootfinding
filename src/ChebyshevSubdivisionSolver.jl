@@ -249,78 +249,106 @@ function transformChebInPlace1D(coeffs,alpha,beta)
     transformedCoeffs : array
         The new coefficient array following the transformation
     """
-    coeffs_shape = size(coeffs)
+    coeffs_shape = [i for i in size(coeffs)]
     if length(coeffs_shape) == 1
         return transformChebInPlace1D1D(coeffs,alpha,beta)
     end
+    dim = length(coeffs_shape)
+    flat_coeffs = reshape(coeffs,:,coeffs_shape[dim])
+    flat_coeffs_shape = [i for i in size(flat_coeffs)]
     last_dim_length = coeffs_shape[end]
-    transformedCoeffs = zeros(type, coeffs_shape)
+
     # Initialize three arrays to represent subsequent columns of the transformation matrix.
-    arr1 = zeros(type, last_dim_length)
-    arr2 = zeros(type, last_dim_length)
-    arr3 = zeros(type, last_dim_length)
-
+    # arr1 = zeros(type, last_dim_length)
+    # arr2 = zeros(type, last_dim_length)
+    # arr3 = zeros(type, last_dim_length)
+    C = zeros(type, last_dim_length,last_dim_length)
     #The first column of the transformation matrix C. Since T_0(alpha*x + beta) = T_0(x) = 1 has 1 in the top entry and 0's elsewhere.
-    arr1[1] = 1
-
-    # Get the correct number of colons for indexing transformedCoeffs
-    # idxs = []
-    dims = length(coeffs_shape)
-    # for i in 1:dims-1
-    #     push!(idxs,:)
-    # end
-
-    # oldSlices = mapslices(x->[x],coeffs,dims = 1:dims-1)
-    oldSlices = collect(eachslice(coeffs,dims=dims))
-    # newSlices = mapslices(x->[x],transformedCoeffs,dims = 1:dims-1)
-    newSlices = collect(Array.(eachslice(transformedCoeffs,dims=dims)))
-    newSlices[1] = oldSlices[1] # arr1[0] * coeffs[0] (matrix multiplication step)
-    #The second column of C. Note that T_1(alpha*x + beta) = alpha*T_1(x) + beta*T_0(x).
-    arr2[1] = beta
-    arr2[2] = alpha
-    newSlices[1] += beta * oldSlices[2] # arr2[0] * coeffs[1] (matrix muliplication)
-    newSlices[2] += alpha * oldSlices[2] # arr2[1] * coeffs[1] (matrix multiplication)
-    maxRow = 2
-    for col in 2:last_dim_length-1 # For each column, calculate each entry and do matrix mult
-        thisCoeff = oldSlices[col+1] # the row of coeffs corresponding to the column col of C (for matrix mult)
-        # The first entry
-        arr3[1] = -arr1[1] + alpha*arr2[2] + 2*beta*arr2[1]
-        newSlices[1] += thisCoeff * arr3[1]
-        # The second entry
-        if maxRow > 2
-            arr3[2] = -arr1[2] + alpha*(2*arr2[1] + arr2[3]) + 2*beta*arr2[2]
-            newSlices[2] += thisCoeff * arr3[2]
+    C[1,1] = type(1)
+    C[2,1] = type(beta)
+    C[2,2] = type(alpha)
+    j=3
+    machEps = type(2)^-(precision-1)
+    for k in 3:last_dim_length
+        C[k,1] = type(2)*beta*C[k-1,1] - C[k-2,1] + alpha*C[k-1,2]
+        C[k,2] = type(2)*beta*C[k-1,2] - C[k-2,2] + alpha*C[k-1,3] + type(2)*alpha*C[k-1,1]
+        for i in 3:j-1
+            C[k,i] = type(2)*beta*C[k-1,i] - C[k-2,i] + alpha*C[k-1,i+1] + alpha*C[k-1,i-1]
         end
-
-        # All middle entries
-        for i in 3:maxRow-1
-            arr3[i] = -arr1[i] + alpha*(arr2[i-1] + arr2[i+1]) + 2*beta*arr2[i]
-            # newSlices[i] += thisCoeff .* arr3[i]
-            newSlices[i] += thisCoeff * arr3[i]
+        if abs(alpha*C[k-1,j-1]) > macheps
+            C[k,j] = alpha*C[k-1,j-1]
+            j+=1
         end
-
-        # The second to last entry
-        i = maxRow
-        arr3[i] = -arr1[i] + (i == 2 ? 2 : 1)*alpha*(arr2[i-1]) + 2*beta*arr2[i]
-        newSlices[i] += thisCoeff * arr3[i]
-        #The last entry
-        finalVal = alpha*arr2[i]
-        # This final entry is typically very small. If it is essentially machine epsilon,
-        # zero it out to save calculations.
-        if abs(finalVal) > type(2)^(-(precision-1)) #TODO: Justify this val!
-            arr3[maxRow+1] = finalVal
-            newSlices[maxRow+1] += thisCoeff * finalVal
-            maxRow += 1 # Next column will have one more entry than the current column.
-        end
-
-        # Save the values of arr2 and arr3 to arr1 and arr2 to get ready for calculating the next column.
-        arr = arr1
-        arr1 = arr2
-        arr2 = arr3
-        arr3 = arr
     end
-    VA = VectorOfArray(newSlices[1:maxRow])
-    return convert(Array,VA)
+    if last_dim_length != j-1
+        last_dim_length = j-1
+        C = C[:,1:last_dim_length]
+        flat_coeffs_shape[end] = last_dim_length
+        coeffs_shape[end] = last_dim_length
+    end
+    # new_coeffs = zeros(Float64, flat_coeffs_shape...)
+
+    @tensor new_coeffs[i,j] := flat_coeffs[i,k] * C[k,j]
+    final_coeffs = reshape(new_coeffs,coeffs_shape...)
+    return final_coeffs
+    # # Get the correct number of colons for indexing transformedCoeffs
+    # # idxs = []
+    # dims = length(coeffs_shape)
+    # # for i in 1:dims-1
+    # #     push!(idxs,:)
+    # # end
+
+    # # oldSlices = mapslices(x->[x],coeffs,dims = 1:dims-1)
+    # oldSlices = collect(eachslice(coeffs,dims=dims))
+    # # newSlices = mapslices(x->[x],transformedCoeffs,dims = 1:dims-1)
+    # newSlices = collect(Array.(eachslice(transformedCoeffs,dims=dims)))
+    # newSlices[1] = oldSlices[1] # arr1[0] * coeffs[0] (matrix multiplication step)
+    # #The second column of C. Note that T_1(alpha*x + beta) = alpha*T_1(x) + beta*T_0(x).
+    # arr2[1] = beta
+    # arr2[2] = alpha
+    # newSlices[1] += beta * oldSlices[2] # arr2[0] * coeffs[1] (matrix muliplication)
+    # newSlices[2] += alpha * oldSlices[2] # arr2[1] * coeffs[1] (matrix multiplication)
+    # maxRow = 2
+    # for col in 2:last_dim_length-1 # For each column, calculate each entry and do matrix mult
+    #     thisCoeff = oldSlices[col+1] # the row of coeffs corresponding to the column col of C (for matrix mult)
+    #     # The first entry
+    #     arr3[1] = -arr1[1] + alpha*arr2[2] + 2*beta*arr2[1]
+    #     newSlices[1] += thisCoeff * arr3[1]
+    #     # The second entry
+    #     if maxRow > 2
+    #         arr3[2] = -arr1[2] + alpha*(2*arr2[1] + arr2[3]) + 2*beta*arr2[2]
+    #         newSlices[2] += thisCoeff * arr3[2]
+    #     end
+
+    #     # All middle entries
+    #     for i in 3:maxRow-1
+    #         arr3[i] = -arr1[i] + alpha*(arr2[i-1] + arr2[i+1]) + 2*beta*arr2[i]
+    #         # newSlices[i] += thisCoeff .* arr3[i]
+    #         newSlices[i] += thisCoeff * arr3[i]
+    #     end
+
+    #     # The second to last entry
+    #     i = maxRow
+    #     arr3[i] = -arr1[i] + (i == 2 ? 2 : 1)*alpha*(arr2[i-1]) + 2*beta*arr2[i]
+    #     newSlices[i] += thisCoeff * arr3[i]
+    #     #The last entry
+    #     finalVal = alpha*arr2[i]
+    #     # This final entry is typically very small. If it is essentially machine epsilon,
+    #     # zero it out to save calculations.
+    #     if abs(finalVal) > type(2)^(-(precision-1)) #TODO: Justify this val!
+    #         arr3[maxRow+1] = finalVal
+    #         newSlices[maxRow+1] += thisCoeff * finalVal
+    #         maxRow += 1 # Next column will have one more entry than the current column.
+    #     end
+
+    #     # Save the values of arr2 and arr3 to arr1 and arr2 to get ready for calculating the next column.
+    #     arr = arr1
+    #     arr1 = arr2
+    #     arr2 = arr3
+    #     arr3 = arr
+    # end
+    # VA = VectorOfArray(newSlices[1:maxRow])
+    # return convert(Array,VA)
     # return cat(newSlices[1:maxRow]...,dims = dims)
 end
 
