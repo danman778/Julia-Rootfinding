@@ -1,8 +1,9 @@
-import FFTW: r2r #This is the DCT-I function that takes in a matrix and a transform "kind"
-import FFTW: REDFT00 #This is the enum that represents DCT-I 
+# import FFTW: r2r #This is the DCT-I function that takes in a matrix and a transform "kind"
+# import FFTW: REDFT00 #This is the enum that represents DCT-I 
 using Statistics
+include("DCT.jl")
 
-function getApproxError(degs, epsilons, rhos, macheps=2^-52)
+function getApproxError(degs, epsilons, rhos, macheps=type(2)^-(precision-1))
     """
     Computes an upper bound for the error of the Chebyshev approximation.
 
@@ -23,7 +24,7 @@ function getApproxError(degs, epsilons, rhos, macheps=2^-52)
     approxError : Float64
         An upper bound on the approximation error
     """
-    approxError = 0.0
+    approxError = type(0.0)
     
     # Create a partition of coefficients where idxs[i]=1 represents coefficients being greater than
     # degs[i] in dimension i and idxs[i]=0 represents coefficients being less than [i] in dimension i.
@@ -33,8 +34,8 @@ function getApproxError(degs, epsilons, rhos, macheps=2^-52)
             continue
         end
         
-        s = 1.0
-        thisEps = 0.0
+        s = type(1.0)
+        thisEps = type(0.0)
         
         for (i, used) in enumerate(idxs)
             if Bool(used)
@@ -74,10 +75,10 @@ function transformPoints(x,a,b)
         The transformed points.
     """
 
-    return ((b-a).*x .+(b+a))/2
+    return ((b-a).*x .+(b+a))/type(2)
 end
 
-function getFinalDegree(coeff,tol,macheps = 2^-52)
+function getFinalDegree(coeff,tol,macheps = type(2)^-(precision-1))
     """Finalize the degree of Chebyshev approximation to use along one particular dimension.
 
     This function is called after the coefficients have started converging at degree n. A degree
@@ -106,7 +107,7 @@ function getFinalDegree(coeff,tol,macheps = 2^-52)
 
     # Set the final degree to the position of the last coefficient greater than convergence value
     converged_deg = Int64(div((3 * (length(coeff) - 1) / 4),1)) # Assume convergence at degree 3n/2.
-    epsval = 2*max(macheps,maximum(coeff[converged_deg+1:end])) # Set epsVal to 2x the largest coefficient past degree 3n/2
+    epsval = type(2)*max(macheps,maximum(coeff[converged_deg+1:end])) # Set epsVal to 2x the largest coefficient past degree 3n/2
     nonzero_coeffs_index = [i for i in 1:length(coeff) if coeff[i]>epsval]
     if isempty(nonzero_coeffs_index) 
         degree = 1
@@ -125,9 +126,9 @@ function getFinalDegree(coeff,tol,macheps = 2^-52)
         maxspot = maxspot[1]
     end
     if epsval == 0 #Avoid divide by 0. epsVal shouldn't be able to shrink by more than 1e-24 cause floating point.
-         epsval = coeff[maxspot] * 1e-24
+         epsval = coeff[maxspot] * type(1e-24)
     end
-    rho = (coeff[maxspot]/epsval)^(1/(degree - (maxspot) + 2))
+    rho = (coeff[maxspot]/epsval)^type(1/(degree - (maxspot) + 2))
     return degree, epsval, rho
 end
 
@@ -175,13 +176,13 @@ function checkConstantInDimension(f,a,b,currdim,relTol,absTol=0)
     dim = length(a)
     currdim = currdim + 1
     # First test point x1
-    x1 = transformPoints([0.8984743990614998^(val) for val in 1:dim],a,b)
+    x1 = transformPoints([type(0.8984743990614998)^(val) for val in 1:dim],a,b)
     eval1 = f(x1...)
     if isapprox(eval1,0,rtol=relTol,atol=absTol)
         return false
     end
     # Test how changing x_1[dim] changes the value of f for several values         
-    for val in transformPoints([-0.7996847717584993;0.18546110255464776;-0.13975937255055182;0.;1.;-1.],a[currdim],b[currdim])
+    for val in transformPoints(type.([-0.7996847717584993;0.18546110255464776;-0.13975937255055182;0.;1.;-1.]),a[currdim],b[currdim])
         x1[currdim] = val
         eval2 = f(x1...)
         if !isapprox(eval1,eval2,rtol=relTol,atol=absTol) # Corresponding points gave different values for f(x)
@@ -190,13 +191,13 @@ function checkConstantInDimension(f,a,b,currdim,relTol,absTol=0)
     end
 
     # Second test point x_2
-    x2 = transformPoints([(-0.2598647169391334*(val)/(dim))^2 for val in 1:dim],a,b)
+    x2 = transformPoints([(type(-0.2598647169391334)*(val)/(dim))^2 for val in 1:dim],a,b)
     eval1 = f(x2...)
-    if isapprox(eval1,0,rtol=relTol,atol=absTol) # Make sure f(x_2) != 0 (unlikely)
+    if isapprox(eval1,type(0),rtol=relTol,atol=absTol) # Make sure f(x_2) != 0 (unlikely)
         return false
     end
 
-    for val in transformPoints([-0.17223860129797386;0.10828286380141305;-0.5333148248321931;0.46471703497219596],a[currdim],b[currdim])
+    for val in transformPoints(type.([-0.17223860129797386;0.10828286380141305;-0.5333148248321931;0.46471703497219596]),a[currdim],b[currdim])
         x2[currdim] = val
         eval2 = f(x2...)
         if !isapprox(eval1,eval2,rtol=relTol,atol=absTol)
@@ -227,6 +228,11 @@ function hasConverged(coeff, coeff2, tol)
     """
     coeff3 = copy(coeff2)
 	coeff3[CartesianIndices(coeff)] .-= coeff 
+    # TODO: check if approximation time is extreme in high precision.
+    # We could stop at degree 200 using the following lines to prevent extreme approximation times
+    # if size(coeff)[1] > 200
+    #     return true
+    # end
     return maximum(abs.(coeff3)) < tol
 end
 
@@ -283,39 +289,6 @@ function createMeshgrid2(point_arrays)
     return outputs
 end
 
-function dct(cheb_zeros)
-    dims = collect(size(cheb_zeros))
-    dim_arrays = [collect(range(0,stop=i-1)) for i in dims]
-    meshgrids = createMeshgrid(dim_arrays...)
-
-    point_indices = []
-    for meshgrid in meshgrids
-        if (isempty(point_indices))
-            point_indices = vec(meshgrid)
-        else
-        hcat(point_indices,vec(meshgrid))
-        end
-    end
-
-    num_points = length(point_indices[1,:])
-    coeffs = zeros(dims...)
-    n_coords = [point_indices[:,col] for col in 1:num_points]
-
-
-
-    function cos_prod(n_vals,k_vals)
-        len = length(k_vals)
-        return prod([cos(pi/(dims[i]-1))*(n_vals[i]*k_vals[i]) for i in 1:len])
-    end
-
-    for col in 1:num_points
-        k_vals = point_indices[:,col]
-        coordinate = k_vals.+1
-        coeffs[coordinate] = sum([cheb_zeros[n_vals...]*cos_prod(k_vals,n_vals) for n_vals in n_coords])
-    end
-
-    return coeffs
-end
 
 function intervalApproximateND(f, degs, a, b, retSupNorm = false)
     """Generates an approximation of f on [a,b] using Chebyshev polynomials of degs degrees.
@@ -346,10 +319,10 @@ function intervalApproximateND(f, degs, a, b, retSupNorm = false)
     dim = length(degs)
     # If any dimension has degree 0, turn it to degree 1 (will be sliced out at the end)
     originalDegs = copy(degs)
-    degs[degs .== 0] .= 1 
+    degs[degs .== 0] .= 1
 
     # Get the Chebyshev Grid Points
-    cheb_grid = createMeshgrid([transformPoints(cos.(collect(0:deg)*(pi/deg)), a_,b_) 
+    cheb_grid = createMeshgrid([transformPoints(cos.(collect(0:deg)*(type(pi)/deg)), a_,b_) 
                                     for (deg, a_, b_) in zip(degs, a, b)]...)
     cheb_pts = reshape(vcat(map(x -> reshape(x,(1,length(x))),cheb_grid)...),(dim,:))
     values = reshape(mapslices(x->f(x...),cheb_pts,dims=1),Tuple(reverse(degs.+1)))
@@ -358,16 +331,10 @@ function intervalApproximateND(f, degs, a, b, retSupNorm = false)
         supNorm = maximum(abs.(values))
     end
 
-    #Divide edges by 2 for DCT: (UNNECESARY WITH JULIA DCT)
-    # for d in reverse(1:dim)
-    #     values[[i != d ? Colon() : 1 for i in reverse(1:dim)]...] /= 2
-    #     values[[i != d ? Colon() : degs[i]+1 for i in reverse(1:dim)]...] /= 2
-    # end
-
     #Perform Type-I DCT
     #https://github.com/JuliaMath/FFTW.jl/blob/master/src/fft.jl 
     #http://www.fftw.org/doc/1d-Real_002deven-DFTs-_0028DCTs_0029.html
-    coeffs = r2r(values ./ prod(degs), REDFT00) 
+    coeffs = dct_arb(values ./ prod(degs)) 
     # transpose array if it is only one dimensional since r2r doesn't put it in the format we need
     if length(degs) == 1
         coeffs = coeffs'
@@ -378,8 +345,8 @@ function intervalApproximateND(f, degs, a, b, retSupNorm = false)
 
     #Divide edges by 2 post DCT
     for d in reverse(1:dim)
-        coeffs[[i != d ? Colon() : 1 for i in reverse(1:dim)]...] /= 2
-        coeffs[[i != d ? Colon() : degs[i]+1 for i in reverse(1:dim)]...] /= 2
+        coeffs[[i != d ? Colon() : 1 for i in reverse(1:dim)]...] /= type(2)
+        coeffs[[i != d ? Colon() : degs[i]+1 for i in reverse(1:dim)]...] /= type(2)
     end
 
     #Return the coefficient tensor and the sup norm
@@ -456,8 +423,8 @@ function getChebyshevDegrees(f, a, b, relApproxTol, absApproxTol = 0)
     b = reshape(b,:,1)
     dim = length(a)
     chebDegrees = ones(Int64,dim,1)*Inf # the approximation degree in each dimension
-    epsilons = [] # the value the approximation has converged to in each dimension
-    rhos = [] # the calculated rate of convergence in each dimension
+    epsilons = type.([]) # the value the approximation has converged to in each dimension
+    rhos = type.([]) # the calculated rate of convergence in each dimension
     # Check to see if f varies each input; set degree to 0 if not
     for currDim in range(1,dim)
         if checkConstantInDimension(f,a,b,currDim-1,relApproxTol,absApproxTol)
@@ -520,7 +487,7 @@ function getChebyshevDegrees(f, a, b, relApproxTol, absApproxTol = 0)
     return Int.(chebDegrees), epsilons, rhos
 end
 
-function chebApproximate(f, a, b, relApproxTol=1e-10)
+function chebApproximate(f, a, b, relApproxTol=type(2)^-(precision-1)*10)
     # TODO:implement a way for the user to input Chebyshev coefficients they may already have, (MultiCheb/MultiPower stuff in python implementation)
     """
 

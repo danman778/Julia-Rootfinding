@@ -4,7 +4,7 @@ include("StructsWithTheirFunctions/TrackedInterval.jl")
 using LinearAlgebra
 using GenericLinearAlgebra
 using Logging
-using RecursiveArrayTools
+using TensorOperations
 
 # TODO: import from a library like this one instead of crowding our sourcecode with pre-written code https://github.com/JeffreySarnoff/ErrorfreeArithmetic.jl/blob/main/src/sum.jl
 function twoSum(a,b)
@@ -228,7 +228,7 @@ function transformChebInPlace1D1D(coeffs,alpha,beta)
     return transformedCoeffs[1:maxRow]
 end
 
-function transformChebInPlace1D(coeffs,alpha,beta)
+function transformChebInPlace1D(coeffs,alpha,beta, macheps=type(2)^-(precision-1))
     """Applies the transformation alpha*x + beta to one dimension of a Chebyshev approximation.
 
     Recursively finds each column of the transformation matrix C from the previous two columns
