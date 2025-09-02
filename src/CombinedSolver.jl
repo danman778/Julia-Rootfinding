@@ -239,16 +239,3 @@ function solve(funcs,a,b; verbose = false, returnBoundingBoxes = false, exact=fa
         return finalRoots
     end
 end
-
-setprecision(100)
-f = (x, y) -> x^8 - BigFloat(.5)^8
-g = (x, y) -> y^8 - BigFloat(.5)^8
-func = [f, g]
-beans = solve(func, [BigFloat(-1), BigFloat(-1)], [BigFloat(1), BigFloat(1)], roundoff=100)
-println(typeof(beans))
-println(length(beans))
-println(beans)
-println(f(beans[1]...))
-println(f(beans[2]...))
-println(f(beans[3]...))
-println(f(beans[4]...))
